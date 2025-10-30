@@ -19,6 +19,7 @@
 #include "user_lib.h"
 #include "general_def.h"
 #include "master_process.h"
+#include "encoder_app.h"
 
 static INS_t INS;
 static IMU_Param_t IMU_Param;
@@ -28,10 +29,13 @@ const float xb[3] = {1, 0, 0};
 const float yb[3] = {0, 1, 0};
 const float zb[3] = {0, 0, 1};
 
+
 // 用于获取两次采样之间的时间间隔
 static uint32_t INS_DWT_Count = 0;
 static float dt = 0, t = 0;
 static float RefTemp = 40; // 恒温设定温度
+static uint8_t s_ma600_ready = 0; // MA600 编码器就绪标志
+static EncoderSPI *s_MA600_handle = NULL; // MA600 编码器句柄
 
 static void IMU_Param_Correction(IMU_Param_t *param, float gyro[3], float accel[3]);
 
@@ -88,6 +92,12 @@ attitude_t *INS_Init(void)
 
     while (BMI088Init(&hspi1, 1) != BMI088_NO_ERROR)
         ;
+
+    // MA600 初始化
+    EncoderApp_Init();
+    s_MA600_handle = EncoderAPP_GetHandle();
+    s_ma600_ready = (s_MA600_handle != NULL && s_MA600_handle->spi != NULL) ? 1 : 0;
+    
     IMU_Param.scale[X] = 1;
     IMU_Param.scale[Y] = 1;
     IMU_Param.scale[Z] = 1;
@@ -127,8 +137,13 @@ void INS_Task(void)
     // ins update
     if ((count % 1) == 0)
     {
+        // 编码器就绪才进行读取
+        if (s_ma600_ready)
+        {
+            s_MA600_handle->Angle = MA600_ReadAngleDeg();
+        }
+        
         BMI088_Read(&BMI088);
-
         INS.Accel[X] = BMI088.Accel[X];
         INS.Accel[Y] = BMI088.Accel[Y];
         INS.Accel[Z] = BMI088.Accel[Z];

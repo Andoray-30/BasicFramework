@@ -4,8 +4,8 @@
 
 /* 所有的spi instance保存于此,用于callback时判断中断来源*/
 static SPIInstance *spi_instance[SPI_DEVICE_CNT] = {NULL};
-static uint8_t idx = 0;                         // 配合中断以及初始化
-uint8_t SPIDeviceOnGoing[SPI_DEVICE_CNT] = {1}; // 用于判断当前spi是否正在传输,防止多个模块同时使用一个spi总线 (0: 正在传输, 1: 未传输)
+static uint8_t idx = 0;                                   // 配合中断以及初始化
+volatile uint8_t SPIDeviceOnGoing[SPI_DEVICE_CNT] = {1};  // (volatile) 0: 正在传输, 1: 空闲；避免不同上下文读写优化导致自旋不退出
 
 SPIInstance *SPIRegister(SPI_Init_Config_s *conf)
 {
@@ -23,11 +23,11 @@ SPIInstance *SPIRegister(SPI_Init_Config_s *conf)
     instance->id = conf->id;
     if (instance->spi_handle->Instance == SPI1)
     {
-        instance->cs_pin_state = &SPIDeviceOnGoing[0];
+        instance->cs_pin_state = (volatile uint8_t *)&SPIDeviceOnGoing[0];
     }
     else if (instance->spi_handle->Instance == SPI2)
     {
-        instance->cs_pin_state = &SPIDeviceOnGoing[1];
+        instance->cs_pin_state = (volatile uint8_t *)&SPIDeviceOnGoing[1];
     }
     else
     {
@@ -42,6 +42,12 @@ void SPITransmit(SPIInstance *spi_ins, uint8_t *ptr_data, uint8_t len)
 {
     // 拉低片选,开始传输(选中从机)
     HAL_GPIO_WritePin(spi_ins->GPIOx, spi_ins->cs_pin, GPIO_PIN_RESET);
+    // 标记总线占用
+    if (spi_ins->cs_pin_state)
+    {
+        *spi_ins->cs_pin_state = 0;
+        spi_ins->CS_State = 0;
+    }
     switch (spi_ins->spi_work_mode)
     {
     case SPI_DMA_MODE:
@@ -54,6 +60,11 @@ void SPITransmit(SPIInstance *spi_ins, uint8_t *ptr_data, uint8_t len)
         HAL_SPI_Transmit(spi_ins->spi_handle, ptr_data, len, 1000); // 默认50ms超时
         // 阻塞模式不会调用回调函数,传输完成后直接拉高片选结束
         HAL_GPIO_WritePin(spi_ins->GPIOx, spi_ins->cs_pin, GPIO_PIN_SET);
+        if (spi_ins->cs_pin_state)
+        {
+            *spi_ins->cs_pin_state = 1;
+            spi_ins->CS_State = 1;
+        }
         break;
     default:
         while (1)
@@ -69,6 +80,12 @@ void SPIRecv(SPIInstance *spi_ins, uint8_t *ptr_data, uint8_t len)
     spi_ins->rx_buffer = ptr_data;
     // 拉低片选,开始传输
     HAL_GPIO_WritePin(spi_ins->GPIOx, spi_ins->cs_pin, GPIO_PIN_RESET);
+    // 标记总线占用
+    if (spi_ins->cs_pin_state)
+    {
+        *spi_ins->cs_pin_state = 0;
+        spi_ins->CS_State = 0;
+    }
     switch (spi_ins->spi_work_mode)
     {
     case SPI_DMA_MODE:
@@ -81,6 +98,11 @@ void SPIRecv(SPIInstance *spi_ins, uint8_t *ptr_data, uint8_t len)
         HAL_SPI_Receive(spi_ins->spi_handle, ptr_data, len, 1000);
         // 阻塞模式不会调用回调函数,传输完成后直接拉高片选结束
         HAL_GPIO_WritePin(spi_ins->GPIOx, spi_ins->cs_pin, GPIO_PIN_SET);
+        if (spi_ins->cs_pin_state)
+        {
+            *spi_ins->cs_pin_state = 1;
+            spi_ins->CS_State = 1;
+        }
         break;
     default:
         while (1)
@@ -96,23 +118,23 @@ void SPITransRecv(SPIInstance *spi_ins, uint8_t *ptr_data_rx, uint8_t *ptr_data_
     spi_ins->rx_size = len;
     spi_ins->rx_buffer = ptr_data_rx;
     // 等待上一次传输完成
-    if (spi_ins->spi_handle->Instance == SPI1)
+    int bus_idx = (spi_ins->spi_handle->Instance == SPI1) ? 0 : 1;
+    // 带超时的等待，避免极端情况下永远自旋
+    uint32_t start_tick = HAL_GetTick();
+    while (!SPIDeviceOnGoing[bus_idx])
     {
-        while (!SPIDeviceOnGoing[0])
+        if ((HAL_GetTick() - start_tick) > 10) // 10ms 守护超时
         {
-        };
-    }
-    else if (spi_ins->spi_handle->Instance == SPI2)
-    {
-        while (!SPIDeviceOnGoing[1])
-        {
-        };
+            break;
+        }
     }
     // 拉低片选,开始传输
     HAL_GPIO_WritePin(spi_ins->GPIOx, spi_ins->cs_pin, GPIO_PIN_RESET);
-    *spi_ins->cs_pin_state =
-        spi_ins->CS_State =
-            HAL_GPIO_ReadPin(spi_ins->GPIOx, spi_ins->cs_pin);
+    if (spi_ins->cs_pin_state)
+    {
+        *spi_ins->cs_pin_state = 0; // 片选拉低，标记占用
+        spi_ins->CS_State = 0;
+    }
     switch (spi_ins->spi_work_mode)
     {
     case SPI_DMA_MODE:
