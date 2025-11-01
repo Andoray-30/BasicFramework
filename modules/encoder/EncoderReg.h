@@ -1,3 +1,7 @@
+/**
+ * @file EncoderReg.h
+ * @brief MA600 编码器寄存器与 SPI 命令宏定义（按功能分组）。
+ */
 #ifndef ENCODERREG
 #define ENCODERREG
 

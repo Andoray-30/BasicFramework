@@ -12,6 +12,7 @@
         "bsp_dwt.h": "c",
         "master_process.h": "c",
         "encoder_spi.h": "c",
-        "encoderreg.h": "c"
+        "encoderreg.h": "c",
+        "memory.h": "c"
     }
 }

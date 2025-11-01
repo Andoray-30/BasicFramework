@@ -1,9 +1,16 @@
+/**
+ * @file encoder_spi.c
+ * @brief 编码器 SPI 传输层实现与实例管理。
+ */
 #include "encoder_spi.h"
 #include <string.h>
 
-static EncoderSPI encoder_spi2_instance; // 简单场景：单实例（SPI2）
+static EncoderSPI encoder_spi2_instance;
 
 // 获取编码器 SPI 实例句柄（若未初始化则进行一次默认初始化）
+
+// 获取编码器 SPI 实例句柄（若未初始化则进行一次默认初始化）
+/** 获取编码器 SPI 实例句柄（若未初始化则进行一次默认初始化）。 */
 EncoderSPI *EncoderAPP_GetHandle(void)
 {
     if (encoder_spi2_instance.spi == NULL)
@@ -14,6 +21,7 @@ EncoderSPI *EncoderAPP_GetHandle(void)
     return &encoder_spi2_instance;
 }
 
+/** 初始化 SPI2 对应的编码器通信实例。 */
 EncoderSPI *EncoderSPI2_Init(SPI_TXRX_MODE_e mode)
 {
     static SPI_Init_Config_s spi_conf;
@@ -27,11 +35,43 @@ EncoderSPI *EncoderSPI2_Init(SPI_TXRX_MODE_e mode)
     spi_conf.id           = NULL;
 
     encoder_spi2_instance.spi = SPIRegister(&spi_conf);
+
+    // 初始化 sin/cos 的一阶低通滤波器，避免不同分量复用同一状态
+    lowpass_filter_init(&encoder_spi2_instance.angle_filter_sin, LOWPASS_ALPHA);
+    lowpass_filter_init(&encoder_spi2_instance.angle_filter_cos, LOWPASS_ALPHA);
+
     encoder_spi2_instance.rx_len = 0;
     memset(encoder_spi2_instance.rx_buf, 0, sizeof(encoder_spi2_instance.rx_buf));
 
     // 片选由 BSP 层在每次传输时自动拉低/拉高，这里无需额外处理
     return &encoder_spi2_instance;
+}
+
+// 访问 sin/cos 滤波器的 getter
+LowPassFilter *EncoderSPI_GetAngleFilterSin(EncoderSPI *enc)
+{
+    if (!enc) return NULL;
+    return &enc->angle_filter_sin;
+}
+
+LowPassFilter *EncoderSPI_GetAngleFilterCos(EncoderSPI *enc)
+{
+    if (!enc) return NULL;
+    return &enc->angle_filter_cos;
+}
+
+void EncoderSPI_SetAngleFilterAlpha(EncoderSPI *enc, float alpha)
+{
+    if (!enc) return;
+    enc->angle_filter_sin.alpha = alpha;
+    enc->angle_filter_cos.alpha = alpha;
+}
+
+void EncoderSPI_ResetAngleFilters(EncoderSPI *enc)
+{
+    if (!enc) return;
+    enc->angle_filter_sin.initialized = 0u;
+    enc->angle_filter_cos.initialized = 0u;
 }
 
 void EncoderSPI_Transmit(EncoderSPI *enc, const uint16_t *tx, uint8_t words)

@@ -140,9 +140,9 @@ void INS_Task(void)
         // 编码器就绪才进行读取
         if (s_ma600_ready)
         {
-            s_MA600_handle->Angle = MA600_ReadAngleDeg();
+            MA600_ReadAngleDeg();
         }
-        
+
         BMI088_Read(&BMI088);
         INS.Accel[X] = BMI088.Accel[X];
         INS.Accel[Y] = BMI088.Accel[Y];
