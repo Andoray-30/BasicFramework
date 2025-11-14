@@ -34,8 +34,8 @@ const float zb[3] = {0, 0, 1};
 static uint32_t INS_DWT_Count = 0;
 static float dt = 0, t = 0;
 static float RefTemp = 40; // 恒温设定温度
-static uint8_t s_ma600_ready = 0; // MA600 编码器就绪标志
-static EncoderSPI *s_MA600_handle = NULL; // MA600 编码器句柄
+// static uint8_t s_ma600_ready = 0; // MA600 编码器就绪标志
+// static EncoderSPI *s_MA600_handle = NULL; // MA600 编码器句柄
 
 static void IMU_Param_Correction(IMU_Param_t *param, float gyro[3], float accel[3]);
 
@@ -93,10 +93,10 @@ attitude_t *INS_Init(void)
     while (BMI088Init(&hspi1, 1) != BMI088_NO_ERROR)
         ;
 
-    // MA600 初始化
-    EncoderApp_Init();
-    s_MA600_handle = EncoderAPP_GetHandle();
-    s_ma600_ready = (s_MA600_handle != NULL && s_MA600_handle->spi != NULL) ? 1 : 0;
+    // // MA600 初始化
+    // EncoderApp_Init();
+    // s_MA600_handle = EncoderAPP_GetHandle();
+    // s_ma600_ready = (s_MA600_handle != NULL && s_MA600_handle->spi != NULL) ? 1 : 0;
     
     IMU_Param.scale[X] = 1;
     IMU_Param.scale[Y] = 1;
@@ -137,11 +137,11 @@ void INS_Task(void)
     // ins update
     if ((count % 1) == 0)
     {
-        // 编码器就绪才进行读取
-        if (s_ma600_ready)
-        {
-            MA600_ReadAngleDeg();
-        }
+        // // 编码器就绪才进行读取
+        // if (s_ma600_ready)
+        // {
+        //     MA600_ReadAngleDeg();
+        // }
 
         BMI088_Read(&BMI088);
         INS.Accel[X] = BMI088.Accel[X];

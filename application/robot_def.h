@@ -52,7 +52,7 @@
     (defined(ONE_BOARD) && defined(GIMBAL_BOARD)) ||  \
     (defined(CHASSIS_BOARD) && defined(GIMBAL_BOARD))
 #error Conflict board definition! You can only define one board type.
-#endif0 
+#endif 
 
 #pragma pack(1) // 压缩结构体,取消字节对齐,下面的数据都可能被传输
 /* -------------------------基本控制模式和数据类型定义-------------------------*/
@@ -86,6 +86,8 @@ typedef enum
     CHASSIS_ROTATE,            // 小陀螺模式
     CHASSIS_NO_FOLLOW,         // 不跟随，允许全向平移
     CHASSIS_FOLLOW_GIMBAL_YAW, // 跟随模式，底盘叠加角度环控制
+    CHASSIS_NO_MOVE,           // 不移动：保持vx/vy/wz为0，但电机保持使能
+    CHASSIS_OPEN,              // 开放模式：直接使用上层给定的vx/vy/wz，不做偏角坐标变换
 } chassis_mode_e;
 
 // 云台模式设置

@@ -13,6 +13,9 @@
         "master_process.h": "c",
         "encoder_spi.h": "c",
         "encoderreg.h": "c",
-        "memory.h": "c"
+        "memory.h": "c",
+        "controller.h": "c",
+        "ins_task.h": "c",
+        "bsp_spi.h": "c"
     }
 }
